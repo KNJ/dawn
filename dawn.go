@@ -3,27 +3,28 @@ package dawn
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/minio/minio-go"
 	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/minio/minio-go"
 )
 
 type MySQLConfig struct {
 	UserName string
 	Password string
-	Host string
-	Port int
+	Host     string
+	Port     int
 	Database string
 }
 
 type AWSConfig struct {
-	AccessKeyID string
+	AccessKeyID     string
 	SecretAccessKey string
-	Bucket string
+	Bucket          string
 }
 
 type SelectQuery interface {
@@ -48,18 +49,18 @@ func Export(qs []SelectQuery, my *MySQLConfig, dest string) {
 	}
 	defer db.Close()
 
-	for _, q := range(qs) {
+	for _, q := range qs {
 		start := time.Now()
 		stmt := "SELECT "
-		for i, col := range(q.Columns()) {
+		for i, col := range q.Columns() {
 			if i != 0 {
 				stmt += ", "
 			}
 			stmt += col
 		}
-		stmt += " FROM "+q.Table()
+		stmt += " FROM " + q.Table()
 		if q.Where() != "" {
-			stmt += " WHERE "+q.Where()
+			stmt += " WHERE " + q.Where()
 		}
 		fmt.Print("Executing ", "\""+stmt+"\" ")
 		export(stmt, db, dest)
@@ -72,8 +73,8 @@ func Export(qs []SelectQuery, my *MySQLConfig, dest string) {
 func Upload(aws *AWSConfig, objectPrefix string, source string) {
 	s3, err := minio.New(
 		"s3.amazonaws.com",
-		os.Getenv("AWS_ACCESS_KEY_ID"),
-		os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		aws.AccessKeyID,
+		aws.SecretAccessKey,
 		true,
 	)
 	if err != nil {
@@ -97,7 +98,7 @@ func Upload(aws *AWSConfig, objectPrefix string, source string) {
 			if object.Err != nil {
 				log.Fatalln(object.Err)
 			}
-			fmt.Println("Deleting "+object.Key)
+			fmt.Println("Deleting " + object.Key)
 			objectsCh <- object.Key
 		}
 	}()
@@ -117,11 +118,11 @@ func Upload(aws *AWSConfig, objectPrefix string, source string) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	for _, f := range files  {
+	for _, f := range files {
 		fmt.Printf("Uploading %s...", f.Name())
-		objectName := objectPrefix+f.Name()
-		filePath := source+"/"+f.Name()
-		n, err := s3.FPutObject(bucketName, objectName, filePath, minio.PutObjectOptions{ContentType:contentType})
+		objectName := objectPrefix + f.Name()
+		filePath := source + "/" + f.Name()
+		n, err := s3.FPutObject(bucketName, objectName, filePath, minio.PutObjectOptions{ContentType: contentType})
 		fmt.Println(n)
 		if err != nil {
 			log.Fatalln(err)
@@ -142,7 +143,7 @@ func export(q string, db *sql.DB, dest string) {
 	if _, err = os.Stat(dest); os.IsNotExist(err) {
 		os.Mkdir(dest, 0700)
 	}
-	err = output(rows,dest+"/"+table+".csv")
+	err = output(rows, dest+"/"+table+".csv")
 	if err != nil {
 		fmt.Println(err)
 	}
